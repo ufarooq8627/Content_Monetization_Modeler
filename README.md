@@ -79,7 +79,7 @@ The project follows a **complete data science lifecycle**:
 3. **Run the Streamlit Dashboard**:
    Interact with the trained inference model using real-world numbers!
    ```bash
-   streamlit run streamlit_app.py
+   streamlit run app.py
    ```
 
 ---
