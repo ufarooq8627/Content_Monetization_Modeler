@@ -83,13 +83,20 @@ def load_sample_data():
 df_sample = load_sample_data()
 
 
-#  Pre-compute feature importance from model ─
+#  Pre-compute feature importance from model (Linear Coefficients) ─
 @st.cache_data
 def get_feature_importance():
     prep = model.named_steps["preprocessor"]
-    xgb = model.named_steps["model"]
+    linear_model = model.named_steps["model"]
     feature_names = prep.get_feature_names_out()
-    importances = xgb.feature_importances_
+    
+    # Linear Regression uses coef_ instead of feature_importances_
+    raw_coefs = linear_model.coef_
+    if raw_coefs.ndim > 1:
+        raw_coefs = raw_coefs.flatten()
+        
+    # Use absolute value to show magnitude of impact
+    importances = np.abs(raw_coefs)
 
     # Clean up prefixes for readability
     clean_names = (
@@ -102,25 +109,25 @@ def get_feature_importance():
 
 fi_df = get_feature_importance()
 
-# Hard-coded model evaluation metrics from the Jupyter Notebook training run
+# Model evaluation metrics — computed on 20% hold-out test set, USD scale (log reversed)
 MODEL_METRICS = {
-    "R² Score": 0.9921,
-    "RMSE (USD)": 5.54,
-    "MAE (USD)": 4.39,
+    "R\u00b2 Score": 0.9338,
+    "RMSE (USD)": 16.56,
+    "MAE (USD)": 8.94,
 }
 
-# Comparison of the 5 models evaluated in the notebook
+# Comparison of all 5 linear models evaluated in the notebook (metrics in USD scale)
 MODEL_COMPARISON = pd.DataFrame({
     "Model": [
-        "Linear Regression",
-        "Ridge Regression",
-        "Lasso Regression",
-        "Random Forest",
-        "XGBoost ✅ (Best)",
+        "Linear Regression (Best)",
+        "Ridge",
+        "Lasso",
+        "ElasticNet",
+        "SGD Regressor",
     ],
-    "R²": [0.9783, 0.9783, 0.9783, 0.9891, 0.9921],
-    "RMSE": [9.20, 9.20, 9.20, 6.53, 5.54],
-    "MAE": [7.42, 7.42, 7.42, 5.02, 4.39],
+    "R\u00b2": [0.9338, 0.9338, 0.9291, 0.9324, 0.9338],
+    "RMSE": [16.56, 16.56, 16.53, 16.35, 16.58],
+    "MAE":  [8.94, 8.94, 8.97, 8.74, 8.99],
 })
 
 #  Colour palette  
@@ -239,6 +246,9 @@ with tab1:
             "category":             category,
             "device":               device,
             "country":              country_map[country],
+            # 'subscribers' is in feature_names_in_ (remainder col, dropped by preprocessor)
+            # Must be present to match training schema; it does not affect predictions.
+            "subscribers":          subscribers,
         }])
 
         with st.expander("🔍 See Processed Input Data"):
@@ -398,13 +408,13 @@ with tab3:
 
     st.divider()
 
-    #  Model Comparison Table 
+    #  Model Comparison Table
     st.subheader("5-Model Comparison")
-    st.caption("All five regression models were trained and evaluated; XGBoost performed best.")
+    st.caption("All five linear models were trained and evaluated on a 20% hold-out test set (metrics in USD scale after reversing log transform).")
 
     def highlight_best(row):
-        """Highlight the XGBoost row."""
-        if "XGBoost" in row["Model"]:
+        """Highlight Linear Regression / Ridge (Best R2)."""
+        if "Linear Regression" in row["Model"] or "Ridge" in row["Model"]:
             return ["background-color: #2e1065; color: #c084fc; font-weight: bold"] * len(row)
         return [""] * len(row)
 
@@ -414,26 +424,29 @@ with tab3:
     st.dataframe(styled, use_container_width=True, hide_index=True)
 
     # Bar comparison chart
-    fig, axes = plt.subplots(1, 3, figsize=(12, 4))
-    colors = [PURPLE if "XGBoost" in m else "#374151" for m in MODEL_COMPARISON["Model"]]
-    short_names = ["LR", "Ridge", "Lasso", "RF", "XGB ✅"]
+    fig, axes = plt.subplots(1, 3, figsize=(13, 4))
+    def bar_color(m):
+        if "Linear Regression" in m or "Ridge" in m: return PURPLE
+        return "#374151"
+    colors     = [bar_color(m) for m in MODEL_COMPARISON["Model"]]
+    short_names = ["LR", "Ridge", "Lasso", "Elastic", "SGD"]
 
     for ax, metric, ylabel in zip(
         axes,
-        ["R²", "RMSE", "MAE"],
-        ["R² Score (higher ↑)", "RMSE USD (lower ↓)", "MAE USD (lower ↓)"],
+        ["R\u00b2", "RMSE", "MAE"],
+        ["R\u00b2 Score (higher)", "RMSE USD (lower)", "MAE USD (lower)"],
     ):
         ax.bar(short_names, MODEL_COMPARISON[metric], color=colors, edgecolor="#0f1117")
         ax.set_ylabel(ylabel)
         ax.set_title(metric)
+        ax.tick_params(axis='x', labelsize=8)
         apply_dark_style(fig, ax)
-        # Annotate bars
         for i, v in enumerate(MODEL_COMPARISON[metric]):
-            ax.text(i, v * 0.98, f"{v:.2f}", ha="center", va="top",
-                    fontsize=8, color="#f0f0f0")
+            ax.text(i, v * 0.97, f"{v:.2f}", ha="center", va="top",
+                    fontsize=7, color="#f0f0f0")
 
-    best_patch = mpatches.Patch(color=PURPLE, label="Best Model (XGBoost)")
-    fig.legend(handles=[best_patch], loc="lower right", facecolor="#1c1f2e",
+    lr_patch = mpatches.Patch(color=PURPLE, label="Linear Regression (selected)")
+    fig.legend(handles=[lr_patch], loc="lower right", facecolor="#1c1f2e",
                labelcolor="#cccccc", fontsize=9)
     fig.tight_layout()
     apply_dark_style(fig, list(axes))
@@ -443,8 +456,8 @@ with tab3:
     st.divider()
 
     #  Feature Importance ─
-    st.subheader("Feature Importance (XGBoost)")
-    st.caption("Shows how much each feature contributes to the model's predictions.")
+    st.subheader("Feature Importance (Linear Regression)")
+    st.caption("Shows the absolute magnitude of coefficients, indicating impact on predictions.")
 
     top_n  = st.slider("Show top N features", min_value=5, max_value=24, value=10)
     fi_top = fi_df.head(top_n).sort_values("importance", ascending=True)
@@ -492,8 +505,8 @@ with tab3:
     st.dataframe(feat_explain, use_container_width=True, hide_index=True)
 
     st.divider()
-    st.markdown("#### 💡 Key Model Insights")
+    st.markdown("#### Key Model Insights")
     i1, i2, i3 = st.columns(3)
-    i1.success("🏆 **Watch-time per view** is by far the most important feature (88% importance). Longer viewer retention = significantly higher revenue.")
-    i2.warning("📐 **Engagement rate** is second (3.2%). Likes and comments signal content quality to YouTube's ad placement system.")
-    i3.info("🌍 **Country matters** more than category or device. High CPM markets (DE, CA, US) generate noticeably higher revenue.")
+    i1.success("Linear Regression met the criteria of the project while maintaining an R² of 0.9338 (explaining ~93% of revenue variance).")
+    i2.warning("Watch-time per view is the most dominant feature based on coefficient magnitude, making viewer retention the top KPI.")
+    i3.info("Both Standard Linear Regression and Ridge Regression matched as the top performing models across all 5 linear variants tested.")
