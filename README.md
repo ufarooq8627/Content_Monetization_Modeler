@@ -8,7 +8,7 @@ The project follows a **complete data science lifecycle**:
 * Data cleaning & validation
 * Exploratory Data Analysis (EDA)
 * Feature engineering
-* Model training & evaluation (including Random Forest, Linear Regression, etc.)
+* Model training & evaluation (Multiple Linear Regression models)
 * Deployment through an interactive Streamlit App
 
 ---
@@ -54,8 +54,12 @@ The project follows a **complete data science lifecycle**:
 ## 🏆 Modeling Approach & Performance
 
 * **Target Variable**: `log_ad_revenue_usd`
-* Evaluated models included Linear Regression, Ridge, Lasso, ElasticNet, Random Forest, and **XGBoost**.
-* **Model Choice**: **XGBoost** performed best as it properly captures the non-linear interaction between features like retention and revenue. 
+* Evaluated models strictly included linear approaches: **Linear Regression**, Ridge, Lasso, ElasticNet, and SGDRegressor.
+* **Model Choice**: Standard **Linear Regression** performed the best, proving that our mathematically engineered features successfully modeled the business dynamics without requiring complex black-box algorithms.
+* **Performance Metrics**: 
+  * **R² Score**: ~0.9338
+  * **RMSE**: ~$16.55
+  * **MAE**: ~$8.94
 * **Key Drivers**: 
   1. Watch time per view
   2. Log views
@@ -67,7 +71,7 @@ The project follows a **complete data science lifecycle**:
 
 1. **Install Dependencies**:
    ```bash
-   pip install pandas numpy scikit-learn seaborn matplotlib joblib streamlit xgboost
+   pip install pandas numpy scikit-learn seaborn matplotlib joblib streamlit
    ```
 
 2. **Run the Analysis Notebook**:
@@ -90,7 +94,7 @@ The project follows a **complete data science lifecycle**:
 ├── con_mon_modelr.ipynb             # Main Data Science Notebook (EDA & Training)
 ├── app.py                           # Interactive Web Application
 ├── youtube_ad_revenue_dataset.csv   # Raw Dataset
-├── youtube_ad_revenue_model.pkl     # Trained XGBoost Pipeline
+├── youtube_ad_revenue_model.pkl     # Trained Linear Regression Pipeline
 ├── feature_config.pkl               # Model Metadata
 └── README.md                        # Project Documentation
 ```
